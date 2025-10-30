@@ -303,14 +303,15 @@ else:
 if noise_model_bool:
     exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
 else:
+    if depol_QPD:
+        backend.qubit_labels = [27,19,11,5,1,2,28,6]
+    elif depol_Pauli_bool:
+        backend.qubit_labels = [27,26,18,10,4,5,28,6,29,20,36,12,7,2]
+    #elif depol_U_bool:n can't do this rn
+        
     exact_estimator = Estimator(backend=backend) #Use for real computer
     #quantum computer down can't actually test this
-    if depol_QPD:
-        exact_estimator._qubit_labels = [27,19,11,5,1,2,28,6]
-    elif depol_Pauli_bool:
-        exact_estimator._qubit_labels = [27,26,18,10,4,5,28,6,29,20,36,12,7,2]
-    elif depol_U_bool:
-        exact_estimator._qubit_labels = [27,26,18,10,4,5,28,6,29,20,36,12,7,2]
+    
 
 
 isa_circuit = qct

@@ -3,26 +3,32 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import SparsePauliOp
 
 class VerbatimBraketBackend(BraketAwsBackend):
-    running = False
+    qubit_labels = []
     def run(
         self,
         run_input: QuantumCircuit | list[QuantumCircuit],
         **options,
     ):
+        options = {'shots': 1024}
         self.running = True
         if isinstance(run_input, QuantumCircuit):
             circuits = [run_input]
         elif isinstance(run_input, list):
             circuits = run_input
-        braket_circuits = [
-                to_braket(circ, verbatim=True, qubit_labels=[1,2,3,4,5,6,7,8])
-                for circ in circuits ]
-        shots = options.pop("shots", None)
-        return (
-            self._run_program_set(braket_circuits, shots, **options)
-            if self._supports_program_sets and shots != 0 and len(braket_circuits) > 1
-            else self._run_batch(braket_circuits, shots, **options)
-        )
+        braket_circuits = []
+        for circ in circuits:
+            try:
+                b = to_braket(circ, verbatim=True, qubit_labels=self.qubit_labels)
+                braket_circuits.append(b)
+            except Exception as e:
+                print(f"Failed to convert circuit: {e}")
+
+        shots = 1024
+
+        if self._supports_program_sets and shots != 0 and len(braket_circuits) > 1:
+            return self._run_program_set(braket_circuits, **options)
+        else:
+            return self._run_batch(braket_circuits, **options)
 
 def ring_observables(n: int = 6, num_qubits: int | None = None):
     """
