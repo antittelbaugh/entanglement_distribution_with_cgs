@@ -11,13 +11,12 @@ import logging
 #run options
 target_fidelity = .996
 #Degredation method
-depol_U_bool = False
-depol_Pauli_bool = True
+depol_U_bool = True
+depol_Pauli_bool = False
 depol_QPD = False
 #Run Method
-braket_hw_bool = True
-noise_model_bool = False
-
+braket_hw_bool = False
+noise_model_bool = True
 
 #Set delay value options
 delay_ns = 10
@@ -235,6 +234,7 @@ importlib.reload(estimator_helper_functions)
 from estimator_helper_functions import VerbatimBraketBackend, ring_observables
 from braket.experimental_capabilities import EnableExperimentalCapability
 import traceback
+import statistics
 if noise_model_bool:
     from qiskit_aer.primitives import EstimatorV2 as Estimator
 else:
@@ -335,8 +335,13 @@ for i in range(I_LOCC):
     for label, observable in observables.items():
         pub = (isa_circuit, observable, theta)
         if noise_model_bool:
-            job = exact_estimator.run([pub])
-            result = job.result()
+            sim_results =[]
+            for r in range(100):
+                job = exact_estimator.run([pub])
+                result = job.result()
+                sim_results.append(float(result[0].data.evs))
+            ev = float(sum(sim_results)/len(sim_results))
+            std = statistics.stdev(sim_results)
         else:
             with EnableExperimentalCapability():
                 try:
@@ -347,8 +352,8 @@ for i in range(I_LOCC):
                     traceback.print_exc()
                     pdb.post_mortem()
 
-        ev  = float(result[0].data.evs)
-        std = float(result[0].data.stds)
+            ev  = float(result[0].data.evs)
+            std = float(result[0].data.stds)
         results_mean[i][label] = ev
         results_var[i][label]  = std * std  # store variance
         print("label", label, ev, std)
