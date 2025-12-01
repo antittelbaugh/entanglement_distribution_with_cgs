@@ -17,6 +17,7 @@ depol_QPD = False
 #Run Method
 braket_hw_bool = False
 noise_model_bool = True
+ibm_bool = False #Turn on with noise model bool to run on ibm hw
 
 #Set delay value options
 delay_ns = 10
@@ -236,7 +237,10 @@ from braket.experimental_capabilities import EnableExperimentalCapability
 import traceback
 import statistics
 if noise_model_bool:
-    from qiskit_aer.primitives import EstimatorV2 as Estimator
+    if ibm_bool:
+        from qiskit_ibm_runtime import EstimatorV2 as Estimator
+    else:
+        from qiskit_aer.primitives import EstimatorV2 as Estimator
 else:
     from qiskit.primitives import BackendEstimatorV2 as Estimator
 
@@ -268,7 +272,10 @@ print(observables)
 #-------Simulator setup start here-----------
 # Setup simulator and transpile circuit
 #run on real noise model
-if noise_model_bool:
+if ibm_bool:
+    service = QiskitRuntimeService()
+    hw = service.backend("ibm_torino")
+elif noise_model_bool:
     service = QiskitRuntimeService()
     hw = service.backend("ibm_torino")
     props = hw.properties()
@@ -301,7 +308,10 @@ else:
 
 
 if noise_model_bool:
-    exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
+    if ibm_bool:
+        exact_estimator = Estimator(mode=backend)
+    else:
+        exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
 else:
     if depol_QPD:
         backend.qubit_labels = [27,19,11,5,1,2,28,6]
@@ -312,7 +322,10 @@ else:
     exact_estimator = Estimator(backend=backend) #Use for real computer
     #quantum computer down can't actually test this
     
-
+if ibm_bool: #rewrite circuit for IBM hardware
+    pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
+    isa_circuit = pm.run(qct)
+    observables = [obs.apply_layout(isa_circuit.layout) for obs in observables]
 
 isa_circuit = qct
 
@@ -334,7 +347,12 @@ for i in range(I_LOCC):
 
     for label, observable in observables.items():
         pub = (isa_circuit, observable, theta)
-        if noise_model_bool:
+        if ibm_bool:
+            job = exact_estimator.run([pub])
+            result = job.result()
+            ev  = float(result[0].data.evs)
+            std = float(result[0].data.stds)
+        elif noise_model_bool:
             sim_results =[]
             for r in range(100):
                 job = exact_estimator.run([pub])
