@@ -1,5 +1,10 @@
 import logging
 
+import sys
+logfile = open("fidelity_depol_delay.txt", "w")
+sys.stdout = logfile
+sys.stderr = logfile
+
 # Enable detailed debug output for Qiskit + Braket internals
 # logging.getLogger("qiskit").setLevel(logging.DEBUG)
 # logging.getLogger("qiskit_braket_provider").setLevel(logging.DEBUG)
