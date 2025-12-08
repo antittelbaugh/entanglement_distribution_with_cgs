@@ -1,9 +1,9 @@
 import logging
 
 import sys
-logfile = open("fidelity_depol_delay.txt", "w")
-sys.stdout = logfile
-sys.stderr = logfile
+#logfile = open("fidelity_depol_delay.txt", "w")
+#sys.stdout = logfile
+#sys.stderr = logfile
 
 # Enable detailed debug output for Qiskit + Braket internals
 # logging.getLogger("qiskit").setLevel(logging.DEBUG)
@@ -14,14 +14,14 @@ sys.stderr = logfile
 # logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 # %%
 #run options
-target_fidelity = .996
+target_fidelity = .5
 #Degredation method
-depol_U_bool = True
+depol_U_bool = False
 depol_Pauli_bool = False
-depol_QPD = False
+depol_QPD = True
 #Run Method
-braket_hw_bool = False
-noise_model_bool = True
+braket_hw_bool = True
+noise_model_bool = False
 ibm_bool = False #Turn on with noise model bool to run on ibm hw
 
 #Set delay value options
@@ -314,7 +314,7 @@ else:
 
 if noise_model_bool:
     if ibm_bool:
-        exact_estimator = Estimator(mode=backend)
+        exact_estimator = Estimator(mode=hw)
     else:
         exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
 else:
