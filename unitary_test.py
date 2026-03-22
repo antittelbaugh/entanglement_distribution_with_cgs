@@ -60,3 +60,5 @@ def depol_stinespring(p: float) -> QuantumCircuit:
     qc.cy(2, 0)         # fallback if cy missing: qc.sdg(0); qc.cx(2,0); qc.s(0)
     qc.cz(3, 0)
     return qc
+
+

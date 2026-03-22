@@ -1,10 +1,5 @@
 import logging
 
-import sys
-#logfile = open("fidelity_depol_delay.txt", "w")
-#sys.stdout = logfile
-#sys.stderr = logfile
-
 # Enable detailed debug output for Qiskit + Braket internals
 # logging.getLogger("qiskit").setLevel(logging.DEBUG)
 # logging.getLogger("qiskit_braket_provider").setLevel(logging.DEBUG)
@@ -14,15 +9,16 @@ import sys
 # logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 # %%
 #run options
-target_fidelity = .5
+target_fidelity = 1
 #Degredation method
-depol_U_bool = False
-depol_Pauli_bool = True
+depol_U_bool = True
+depol_Pauli_bool = False
 depol_QPD = False
 #Run Method
 braket_hw_bool = False
 noise_model_bool = True
-ibm_bool = False
+
+
 #Set delay value options
 delay_ns = 10
 
@@ -39,7 +35,7 @@ if depol_U_bool:
     U = UnitaryGate(depol_U_8x8(p), label="Depol")
         
 elif depol_Pauli_bool:
-    p = (4/3)*p_from_target_fidelity(target_fidelity)
+    p = (3/4)*p_from_target_fidelity(target_fidelity)
     dep_gate = depol_stinespring(p)
         
 
@@ -239,13 +235,14 @@ importlib.reload(estimator_helper_functions)
 from estimator_helper_functions import VerbatimBraketBackend, ring_observables
 from braket.experimental_capabilities import EnableExperimentalCapability
 import traceback
+from braket.tracking import Tracker
+from qiskit.providers import JobStatus
+import time
 if noise_model_bool:
-    if ibm_bool:
-        from qiskit_ibm_runtime import EstimatorV2 as Estimator
-    else:
-        from qiskit_aer.primitives import EstimatorV2 as Estimator
+    from qiskit_aer.primitives import EstimatorV2 as Estimator
 else:
     from qiskit.primitives import BackendEstimatorV2 as Estimator
+
 
 
 
@@ -275,10 +272,7 @@ print(observables)
 #-------Simulator setup start here-----------
 # Setup simulator and transpile circuit
 #run on real noise model
-if ibm_bool:
-    service = QiskitRuntimeService()
-    hw = service.backend("ibm_torino")
-elif noise_model_bool:
+if noise_model_bool:
     service = QiskitRuntimeService()
     hw = service.backend("ibm_torino")
     props = hw.properties()
@@ -286,7 +280,7 @@ elif noise_model_bool:
 # 2) Aer simulator with Torino noise (keeps dynamics by NOT copying coupling_map)
     noise = NoiseModel.from_backend(hw)
 #This applies 
-    tau_ns = 1
+    tau_ns = delay_ns
     tau_s  = tau_ns * 1e-9
     for q in range(num_qubits):
         T1 = props.t1(q)
@@ -311,24 +305,18 @@ else:
 
 
 if noise_model_bool:
-    if ibm_bool:
-        exact_estimator = Estimator(mode=hw)
-    else:
-        exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
+    exact_estimator = Estimator.from_backend(backend, options={ "run_options": {"shots": 1024}}) #Use for simulator
 else:
     if depol_QPD:
         backend.qubit_labels = [27,19,11,5,1,2,28,6]
     elif depol_Pauli_bool:
-        backend.qubit_labels = [27,26,18,10,4,5,28,6,29,20,36,12,7,2]
+        backend.qubit_labels = [37,36,35,34,33,25,45,24,44,51,46,32,16,23]
     #elif depol_U_bool:n can't do this rn
         
     exact_estimator = Estimator(backend=backend) #Use for real computer
     #quantum computer down can't actually test this
     
-if ibm_bool: #rewrite circuit for IBM hardware
-    pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
-    isa_circuit = pm.run(qct)
-    observables = [obs.apply_layout(isa_circuit.layout) for obs in observables]
+
 
 isa_circuit = qct
 
@@ -337,6 +325,7 @@ isa_circuit = qct
 
 results_mean = {}
 results_var  = {}  # store variance = std**2
+total_time =0
 
 for i in range(I_LOCC):
     theta = thetas[i]
@@ -344,9 +333,8 @@ for i in range(I_LOCC):
     results_mean[i] = {}
     results_var[i]  = {}
 
-    params = list(isa_circuit.parameters)
-    bind_map = dict(zip(params, theta))
-    bound = isa_circuit.assign_parameters(bind_map, inplace=False)
+    
+    
 
     for label, observable in observables.items():
         pub = (isa_circuit, observable, theta)
@@ -354,6 +342,8 @@ for i in range(I_LOCC):
             job = exact_estimator.run([pub])
             result = job.result()
         else:
+            start_time=None
+            end_time=None
             with EnableExperimentalCapability():
                 try:
                     job = exact_estimator.run([pub])
@@ -406,7 +396,6 @@ expect_var  = {}
 
 for label in labels_any:
     if depol_QPD:
-        # y = mu*(3*b) + (1-mu)*i  -> note the factor 3 on bell part
         y_mean = mu * (3.0 * expect_bell_mean[label]) + (1.0 - mu) * expect_id_mean[label]
         y_var  = (mu*3.0)**2 * expect_bell_var[label] + (1.0 - mu)**2 * expect_id_var[label]
     else:
@@ -442,6 +431,8 @@ for i in range(6):
     w_var  = (1.0/4.0)**2 * (expect_var[f"S{i}"] + expect_var[f"S{j}"] + expect_var[k_ij])
     w_std  = (w_var ** 0.5)
     print(f"Entanglement witness W{i}{j} = {w_mean:.5f} ± {w_std:.5f}")
+
+
 
 
 #Batching runs -- good idea don't have time to implement
